@@ -1,0 +1,138 @@
+// =====================================================================
+// Double-Entry Accounting Learning App — Prisma Schema
+// Designed for PostgreSQL. In the sandbox runtime we use SQLite so the
+// app runs without an external DB. To deploy on PostgreSQL, change:
+//   datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+// and set DATABASE_URL to your Postgres connection string. The model
+// definitions below are PostgreSQL-compatible (no SQLite-only types).
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Runtime provider — switch to "postgresql" for production.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Students / Users -------------------------------------------------
+model Student {
+  id           String   @id @default(cuid())
+  studentId    String?  // university matric no
+  displayName  String
+  email        String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  quizAttempts    QuizAttempt[]
+  lessonProgress  LessonProgress[]
+  practiceRecords PracticeRecord[]
+}
+
+// ---- Lessons ----------------------------------------------------------
+model Lesson {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  order       Int      @default(0)
+  titleEn     String
+  titleMs     String
+  summaryEn   String
+  summaryMs   String
+  icon        String   // lucide icon name
+  durationMin Int      @default(10)
+  createdAt   DateTime @default(now())
+
+  sections    LessonSection[]
+  quizQuestions QuizQuestion[]
+  progress     LessonProgress[]
+}
+
+model LessonSection {
+  id        String @id @default(cuid())
+  lessonId  String
+  order     Int    @default(0)
+  type      String // "intro" | "concept" | "example" | "interactive" | "tip"
+  titleEn   String
+  titleMs   String
+  bodyEn    String // markdown-ish text
+  bodyMs    String
+  // Optional structured payload for interactive blocks (JSON string)
+  payload   String?
+
+  lesson    Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+// ---- Quizzes ----------------------------------------------------------
+model QuizQuestion {
+  id         String @id @default(cuid())
+  lessonId   String?
+  // null lessonId = general / mixed quiz
+  type       String // "mcq" | "journal" | "classify"
+  promptEn   String
+  promptMs   String
+  optionsEn  String // JSON array of strings
+  optionsMs  String
+  answerKey  String // index for mcq, JSON for others
+  explanationEn String
+  explanationMs String
+  difficulty String @default("beginner") // beginner | intermediate | advanced
+  points     Int    @default(1)
+  createdAt  DateTime @default(now())
+
+  lesson     Lesson? @relation(fields: [lessonId], references: [id])
+  attempts   QuizAttempt[]
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  studentId   String
+  questionId  String
+  selectedAnswer String
+  isCorrect   Boolean
+  pointsEarned Int    @default(0)
+  createdAt   DateTime @default(now())
+
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  question    QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+// ---- Lesson progress --------------------------------------------------
+model LessonProgress {
+  id           String   @id @default(cuid())
+  studentId    String
+  lessonId     String
+  status       String   @default("not_started") // not_started | in_progress | completed
+  completionPct Int     @default(0) // 0..100
+  lastSectionIdx Int    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson       Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, lessonId])
+}
+
+// ---- Practice Lab records --------------------------------------------
+model PracticeRecord {
+  id          String   @id @default(cuid())
+  studentId   String
+  scenarioId  String   // identifier of the practice scenario
+  entriesJson String   // JSON of journal entries student built
+  isBalanced  Boolean
+  createdAt   DateTime @default(now())
+
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ---- Chart of Accounts (reference data) ------------------------------
+model Account {
+  id        String @id @default(cuid())
+  code      String @unique // 1000, 1100, etc.
+  nameEn    String
+  nameMs    String
+  category  String // asset | liability | equity | revenue | expense
+  normalBalance String // debit | credit
+  isContra  Boolean @default(false)
+}

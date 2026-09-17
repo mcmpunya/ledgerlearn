@@ -1,0 +1,44 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { DEFAULT_STUDENT_ID } from "@/lib/constants";
+
+// POST /api/quiz/attempt
+// Body: { questionId, selectedAnswer }
+export async function POST(req: Request) {
+  const body = await req.json();
+  const { questionId, selectedAnswer } = body as {
+    questionId: string;
+    selectedAnswer: string;
+  };
+
+  if (!questionId || selectedAnswer === undefined) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  }
+
+  const question = await db.quizQuestion.findUnique({ where: { id: questionId } });
+  if (!question) {
+    return NextResponse.json({ error: "Question not found" }, { status: 404 });
+  }
+
+  const isCorrect = selectedAnswer === question.answerKey;
+  const pointsEarned = isCorrect ? question.points : 0;
+
+  const attempt = await db.quizAttempt.create({
+    data: {
+      studentId: DEFAULT_STUDENT_ID,
+      questionId,
+      selectedAnswer,
+      isCorrect,
+      pointsEarned,
+    },
+  });
+
+  return NextResponse.json({
+    attemptId: attempt.id,
+    isCorrect,
+    pointsEarned,
+    correctAnswer: question.answerKey,
+    explanationEn: question.explanationEn,
+    explanationMs: question.explanationMs,
+  });
+}
