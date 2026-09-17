@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { DEFAULT_STUDENT_ID } from "@/lib/constants";
+import { getCurrentStudentId } from "@/lib/auth";
 
 // POST /api/quiz/attempt
 // Body: { questionId, selectedAnswer }
@@ -20,12 +20,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Question not found" }, { status: 404 });
   }
 
+  const studentId = await getCurrentStudentId();
   const isCorrect = selectedAnswer === question.answerKey;
   const pointsEarned = isCorrect ? question.points : 0;
 
   const attempt = await db.quizAttempt.create({
     data: {
-      studentId: DEFAULT_STUDENT_ID,
+      studentId,
       questionId,
       selectedAnswer,
       isCorrect,

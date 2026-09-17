@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // This app uses Cloud SQL (Postgres) for all data — Firestore is
+    // only here for future features (realtime leaderboard, etc.).
+    // Lock down by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

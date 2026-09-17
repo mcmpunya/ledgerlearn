@@ -10,9 +10,11 @@ import { LessonDetailView } from "@/components/app/lesson-detail-view";
 import { PracticeView } from "@/components/app/practice-view";
 import { QuizView } from "@/components/app/quiz-view";
 import { ProgressView } from "@/components/app/progress-view";
+import { AuthProvider, useAuth } from "@/components/app/auth-provider";
 import { LayoutDashboard, BookOpen, Beaker, Brain, LineChart } from "lucide-react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,10 +28,24 @@ export default function Home() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <AppShell />
+        <AuthProvider>
+          <AuthAwareRefresher />
+          <AppShell />
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
+}
+
+/** When the signed-in user changes, invalidate all queries so the
+ * dashboard / progress views refetch against the new student ID. */
+function AuthAwareRefresher() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  useEffect(() => {
+    qc.invalidateQueries();
+  }, [user?.uid, qc]);
+  return null;
 }
 
 function AppShell() {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { DEFAULT_STUDENT_ID } from "@/lib/constants";
+import { getCurrentStudentId } from "@/lib/auth";
 
 // PATCH /api/progress/lesson/:lessonId
 // Body: { status?, completionPct?, lastSectionIdx? }
@@ -16,16 +16,18 @@ export async function PATCH(
     lastSectionIdx?: number;
   };
 
+  const studentId = await getCurrentStudentId();
+
   const existing = await db.lessonProgress.findUnique({
     where: {
-      studentId_lessonId: { studentId: DEFAULT_STUDENT_ID, lessonId },
+      studentId_lessonId: { studentId, lessonId },
     },
   });
 
   if (!existing) {
     const created = await db.lessonProgress.create({
       data: {
-        studentId: DEFAULT_STUDENT_ID,
+        studentId,
         lessonId,
         status: status ?? "in_progress",
         completionPct: completionPct ?? 0,

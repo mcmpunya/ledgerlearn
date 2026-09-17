@@ -1,10 +1,11 @@
 // =====================================================================
 // Double-Entry Accounting Learning App — Prisma Schema
-// Designed for PostgreSQL. In the sandbox runtime we use SQLite so the
-// app runs without an external DB. To deploy on PostgreSQL, change:
-//   datasource db { provider = "postgresql" url = env("DATABASE_URL") }
-// and set DATABASE_URL to your Postgres connection string. The model
-// definitions below are PostgreSQL-compatible (no SQLite-only types).
+// Designed for PostgreSQL (Neon / Cloud SQL / Supabase).
+// In the sandbox runtime we use SQLite so the app runs without an
+// external DB. To deploy on PostgreSQL:
+//   1. Change datasource.db.provider to "postgresql"
+//   2. Set DATABASE_URL to your Postgres connection string
+// The model definitions below are PostgreSQL-compatible (no SQLite-only types).
 // =====================================================================
 
 generator client {
@@ -18,11 +19,14 @@ datasource db {
 }
 
 // ---- Students / Users -------------------------------------------------
+// NOTE: `id` accepts a Firebase Auth UID string when Firebase Auth is
+// enabled. In demo mode it falls back to "student-demo".
 model Student {
-  id           String   @id @default(cuid())
+  id           String   @id // Firebase UID or "student-demo"
   studentId    String?  // university matric no
   displayName  String
   email        String?  @unique
+  photoUrl     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { DEFAULT_STUDENT_ID } from "@/lib/constants";
+import { getCurrentStudentId } from "@/lib/auth";
 
 // POST /api/practice/save
 // Body: { scenarioId, entriesJson, isBalanced }
@@ -16,9 +16,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
+  const studentId = await getCurrentStudentId();
+
   const record = await db.practiceRecord.create({
     data: {
-      studentId: DEFAULT_STUDENT_ID,
+      studentId,
       scenarioId,
       entriesJson,
       isBalanced,

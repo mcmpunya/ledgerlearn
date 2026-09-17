@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { DEFAULT_STUDENT_ID } from "@/lib/constants";
+import { getCurrentStudentId } from "@/lib/auth";
 
 // GET /api/dashboard
-// Returns aggregated progress + recent activity for the demo student.
+// Returns aggregated progress + recent activity for the current student.
 export async function GET() {
-  const studentId = DEFAULT_STUDENT_ID;
+  const studentId = await getCurrentStudentId();
 
-  const lessons = await db.lesson.findMany({
-    orderBy: { order: "asc" },
-    include: { _count: { select: { quizQuestions: true } } },
-  });
+  const [student, lessons] = await Promise.all([
+    db.student.findUnique({ where: { id: studentId } }),
+    db.lesson.findMany({
+      orderBy: { order: "asc" },
+      include: { _count: { select: { quizQuestions: true } } },
+    }),
+  ]);
 
   const progress = await db.lessonProgress.findMany({
     where: { studentId },
@@ -85,7 +88,12 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    student: { id: studentId, displayName: "Demo Student" },
+    student: {
+      id: studentId,
+      displayName: student?.displayName ?? "Student",
+      photoUrl: student?.photoUrl ?? null,
+      isDemo: studentId === "student-demo",
+    },
     stats: {
       totalLessons: lessons.length,
       completedLessons,
