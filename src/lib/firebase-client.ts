@@ -1,14 +1,19 @@
 "use client";
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
+import type { FirebaseApp } from "firebase/app";
+import type { Auth, GoogleAuthProvider as GoogleAuthProviderType } from "firebase/auth";
 
 /**
- * Client-side Firebase SDK.
+ * Client-side Firebase SDK — loaded lazily.
  *
- * Initialised only when `NEXT_PUBLIC_FIREBASE_API_KEY` is set.
- * In demo mode (no public key), exports are null and the UI shows a
- * "Continue as Guest" button instead of Google sign-in.
+ * Why dynamic import?
+ * - When `NEXT_PUBLIC_FIREBASE_API_KEY` is unset (e.g. in the sandbox
+ *   or during early local development before env vars are configured),
+ *   we never import the `firebase/*` packages at all. This means the
+ *   packages don't need to be installed for the app to run in demo
+ *   mode, and bundlers (Turbopack/webpack) won't fail on resolution.
+ * - When env vars ARE set, we dynamic-import on first use, which
+ *   splits Firebase into its own chunk and loads it on demand.
  */
 const publicConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -21,15 +26,53 @@ const publicConfig = {
 
 export const firebaseClientEnabled = !!publicConfig.apiKey;
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let googleProvider: GoogleAuthProvider | null = null;
+// Lazily-resolved singletons (populated on first call to `ensureFirebase`)
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _googleProvider: GoogleAuthProviderType | null = null;
+let _initPromise: Promise<void> | null = null;
 
-if (firebaseClientEnabled) {
-  app = getApps().length ? getApp() : initializeApp(publicConfig);
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
-  googleProvider.setCustomParameters({ prompt: "select_account" });
+async function ensureFirebase(): Promise<void> {
+  if (!firebaseClientEnabled) {
+    throw new Error("Firebase client SDK is not enabled — set NEXT_PUBLIC_FIREBASE_API_KEY");
+  }
+  if (_app && _auth) return;
+  if (_initPromise) return _initPromise;
+
+  _initPromise = (async () => {
+    const { initializeApp, getApps, getApp } = await import("firebase/app");
+    const { getAuth, GoogleAuthProvider } = await import("firebase/auth");
+
+    _app = getApps().length ? getApp() : initializeApp(publicConfig as Required<typeof publicConfig>);
+    _auth = getAuth(_app);
+    _googleProvider = new GoogleAuthProvider();
+    _googleProvider.setCustomParameters({ prompt: "select_account" });
+  })();
+
+  return _initPromise;
 }
 
-export { app, auth, googleProvider };
+// Public accessors — callers MUST `await ensureFirebase()` first.
+// For convenience, we expose getters that throw if called before init.
+export const auth = {
+  get(): Auth | null {
+    return _auth;
+  },
+  async ensure(): Promise<Auth> {
+    await ensureFirebase();
+    return _auth!;
+  },
+};
+
+export const googleProvider = {
+  get(): GoogleAuthProviderType | null {
+    return _googleProvider;
+  },
+  async ensure(): Promise<GoogleAuthProviderType> {
+    await ensureFirebase();
+    return _googleProvider!;
+  },
+};
+
+// Re-export types for convenience
+export type { FirebaseApp, Auth, GoogleAuthProviderType };

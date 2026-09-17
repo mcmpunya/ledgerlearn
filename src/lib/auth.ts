@@ -24,7 +24,8 @@ export async function getCurrentStudentId(): Promise<string> {
   }
 
   try {
-    const decoded = await firebaseAuth!.verifySessionCookie(sessionCookie, true);
+    const auth = await firebaseAuth.ensure();
+    const decoded = await auth.verifySessionCookie(sessionCookie, true);
     const uid = decoded.uid;
 
     // Ensure Student row exists (upsert)
@@ -58,7 +59,8 @@ export async function isSignedIn(): Promise<boolean> {
   const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!sessionCookie) return false;
   try {
-    await firebaseAuth!.verifySessionCookie(sessionCookie, true);
+    const auth = await firebaseAuth.ensure();
+    await auth.verifySessionCookie(sessionCookie, true);
     return true;
   } catch {
     return false;

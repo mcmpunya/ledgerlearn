@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { firebaseAuth, firebaseEnabled, SESSION_COOKIE_NAME, SESSION_COOKIE_MAX_AGE } from "@/lib/firebase-admin";
+import {
+  firebaseAuth,
+  firebaseEnabled,
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_MAX_AGE,
+} from "@/lib/firebase-admin";
 
 /**
  * POST /api/auth/session
@@ -24,9 +29,10 @@ export async function POST(req: Request) {
   }
 
   try {
+    const auth = await firebaseAuth.ensure();
     // Verify the ID token first (5-day expiration enforced by Firebase)
-    await firebaseAuth!.verifyIdToken(idToken);
-    const sessionCookie = await firebaseAuth!.createSessionCookie(idToken, {
+    await auth.verifyIdToken(idToken);
+    const sessionCookie = await auth.createSessionCookie(idToken, {
       expiresIn: SESSION_COOKIE_MAX_AGE,
     });
 

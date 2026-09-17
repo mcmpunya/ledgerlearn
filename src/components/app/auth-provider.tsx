@@ -6,7 +6,6 @@ import {
   googleProvider,
   firebaseClientEnabled,
 } from "@/lib/firebase-client";
-import { signInWithPopup, signOut as fbSignOut, onAuthStateChanged, type User } from "firebase/auth";
 
 type AuthUser = {
   uid: string;
@@ -58,41 +57,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Also subscribe to Firebase client auth state so we react to
-    // token refreshes while the tab is open.
-    if (auth) {
-      const unsub = onAuthStateChanged(auth, (fbUser: User | null) => {
-        // Don't override user from cookie — only refresh if user already present
-        if (fbUser && !cancelled) {
-          setUser((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  email: fbUser.email ?? prev.email,
-                  displayName: fbUser.displayName ?? prev.displayName,
-                  photoURL: fbUser.photoURL ?? prev.photoURL,
-                }
-              : prev
-          );
+    // If Firebase client is enabled, also subscribe to its auth state
+    // so we react to token refreshes while the tab is open. We use the
+    // lazy accessor so the firebase/* modules are only imported when
+    // actually needed.
+    let unsub: (() => void) | null = null;
+    if (firebaseClientEnabled) {
+      (async () => {
+        try {
+          const authInstance = await auth.ensure();
+          const { onAuthStateChanged } = await import("firebase/auth");
+          if (cancelled) return;
+          unsub = onAuthStateChanged(authInstance, (fbUser) => {
+            if (fbUser && !cancelled) {
+              setUser((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      email: fbUser.email ?? prev.email,
+                      displayName: fbUser.displayName ?? prev.displayName,
+                      photoURL: fbUser.photoURL ?? prev.photoURL,
+                    }
+                  : prev
+              );
+            }
+          });
+        } catch {
+          // Firebase failed to load — cookie auth still works
         }
-      });
-      return () => {
-        cancelled = true;
-        unsub();
-      };
+      })();
     }
     return () => {
       cancelled = true;
+      if (unsub) unsub();
     };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!auth || !googleProvider) {
+    if (!firebaseClientEnabled) {
       // Demo mode — no actual sign-in. The UI shouldn't call this
       // when demoMode is true, but we guard anyway.
       return;
     }
-    const cred = await signInWithPopup(auth, googleProvider);
+
+    // Lazy-load Firebase auth modules
+    const [authInstance, provider, { signInWithPopup, signOut: fbSignOut }] = await Promise.all([
+      auth.ensure(),
+      googleProvider.ensure(),
+      import("firebase/auth"),
+    ]);
+
+    const cred = await signInWithPopup(authInstance, provider);
     const idToken = await cred.user.getIdToken();
     // Exchange for session cookie
     const r = await fetch("/api/auth/session", {
@@ -110,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       photoURL: cred.user.photoURL,
     });
     // Sign out of the client SDK — we rely on the cookie from here.
-    await fbSignOut(auth);
+    await fbSignOut(authInstance);
   }, []);
 
   const signOut = useCallback(async () => {

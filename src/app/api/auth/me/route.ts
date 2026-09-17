@@ -23,7 +23,8 @@ export async function GET() {
   }
 
   try {
-    const decoded = await firebaseAuth!.verifySessionCookie(sessionCookie, true);
+    const auth = await firebaseAuth.ensure();
+    const decoded = await auth.verifySessionCookie(sessionCookie, true);
     return NextResponse.json({
       user: {
         uid: decoded.uid,
